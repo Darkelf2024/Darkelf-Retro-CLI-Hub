@@ -1,4 +1,4 @@
-# Darkelf Retro CLI
+# Darkelf Retro CLI Tools
 
 Darkelf Retro CLI is a local-first, terminal-based retro gaming research environment. Designed for historians, collectors, and enthusiasts, it provides fast, focused access to classic game information directly from the command line.
 
