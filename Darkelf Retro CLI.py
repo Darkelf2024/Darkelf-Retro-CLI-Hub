@@ -22,7 +22,7 @@ from rich.table import Table
 # ============================================================
 
 APP_NAME = "Darkelf Retro CLI"
-APP_VERSION = "4.4"
+APP_VERSION = "4.6"
 
 DDG_LITE = "https://lite.duckduckgo.com/lite/?q="
 DEFAULT_MODEL = "mistral"
