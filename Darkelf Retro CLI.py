@@ -20,12 +20,41 @@ from rich.padding import Padding
 import shutil
 import termios
 import tty
+import zlib
+
+ORIGINAL_TTY_ATTRS = None
+
+def init_tty():
+    global ORIGINAL_TTY_ATTRS
+    try:
+        fd = sys.stdin.fileno()
+        ORIGINAL_TTY_ATTRS = termios.tcgetattr(fd)
+    except Exception:
+        ORIGINAL_TTY_ATTRS = None
+
+
+
+def safe_input(prompt=""):
+    reset_stdin()
+    return input(prompt)
 
 def flush_stdin():
     try:
         termios.tcflush(sys.stdin, termios.TCIFLUSH)
     except Exception:
         pass
+        
+def reset_stdin():
+    try:
+        if ORIGINAL_TTY_ATTRS is None:
+            return
+        fd = sys.stdin.fileno()
+        termios.tcsetattr(fd, termios.TCSADRAIN, ORIGINAL_TTY_ATTRS)
+        termios.tcflush(fd, termios.TCIFLUSH)
+    except Exception:
+        pass
+
+
 
 current_url = None
 back_stack = []
@@ -218,7 +247,7 @@ def browser_loop():
 # ============================================================
 
 APP_NAME = "Darkelf Retro CLI"
-APP_VERSION = "4.4"
+APP_VERSION = "4.7"
 
 DDG_LITE = "https://lite.duckduckgo.com/lite/?q="
 DEFAULT_MODEL = "mistral"
@@ -275,6 +304,37 @@ def is_int(s: str) -> bool:
         return True
     except Exception:
         return False
+        
+# ============================================================
+# GAME IDENTITY ABSTRACTION
+# ============================================================
+
+def normalize_title(name: str) -> str:
+    """Strip common noise from ROM filenames."""
+    name = os.path.splitext(name)[0]
+    noise = [
+        "(usa)", "(u)", "(europe)", "(eu)", "(japan)", "(jp)",
+        "(rev", "(v", "[!]", "[b]", "[t]", "[h]"
+    ]
+    lname = name.lower()
+    for n in noise:
+        if n in lname:
+            lname = lname.split(n)[0]
+    return lname.replace("_", " ").strip().title()
+
+def derive_game_identity(rom_meta: dict) -> dict:
+    """
+    Produce a canonical game identity from ROM metadata.
+    """
+    title = normalize_title(rom_meta["file"])
+    platform = rom_meta["platform"]
+
+    return {
+        "id": f"{title}::{platform}",
+        "title": title,
+        "platform": platform,
+        "variants": [],
+    }
 
 # ============================================================
 # ROM HASHING
@@ -289,13 +349,61 @@ def hash_rom_file(path, blocksize=1024 * 1024):
                 break
             crc = zlib.crc32(chunk, crc)
     return f"{crc & 0xffffffff:08X}"
+    
+# ============================================================
+# ROM PROVENANCE / TRUST SCORING
+# ============================================================
+
+def evaluate_rom_provenance(rom_meta: dict) -> dict:
+    """
+    Assign a confidence score to a ROM based on heuristics.
+    """
+    score = 0
+    reasons = []
+
+    # Platform detection
+    if rom_meta["platform"] != "UNKNOWN":
+        score += 25
+        reasons.append("Platform detected")
+
+    # Size sanity
+    size_gb = rom_meta["size_mb"] / 1024
+    if 0.01 < size_gb < 9.0:
+        score += 20
+        reasons.append("Size within expected range")
+
+    # CRC availability
+    crc = rom_meta.get("crc32")
+    if crc and crc != "ERROR":
+        score += 30
+        reasons.append("CRC32 computed")
+
+    # Extension sanity
+    if rom_meta["file"].lower().endswith(ROM_EXTENSIONS):
+        score += 15
+        reasons.append("Valid ROM extension")
+
+    score = min(score, 100)
+
+    if score >= 85:
+        verdict = "Likely Clean Dump"
+    elif score >= 60:
+        verdict = "Plausible Dump"
+    else:
+        verdict = "Questionable / Needs Verification"
+
+    return {
+        "score": score,
+        "verdict": verdict,
+        "signals": reasons
+    }
 
 # ============================================================
 # ROM + PLATFORM DETECTION
 # ============================================================
 
 PLATFORM_KEYWORDS = {
-    "PS2": ["ps2", "playstation 2", "(ps2)"],  # Add PS2-specific markers
+    "PS2": ["ps2", "playstation 2", "(ps2)"],
     "PS1": ["psx", "ps1", "ps", "playstation"],
     "GAMECUBE": ["gamecube", "gc", "(gc)"],
     "WII": ["wii"],
@@ -304,8 +412,11 @@ PLATFORM_KEYWORDS = {
     "PSP": ["psp"],
 }
 
+# ✅ ADD THIS LINE
+ROM_HASHES = {}
+
+
 def detect_platform(name: str, path: str | None = None):
-    import zlib
     lname = name.lower()
 
     # --- CRC/Hash-based detection (most reliable)
@@ -386,10 +497,16 @@ def should_hash(path, max_mb=500):
 
 def rom_metadata_extended(path: str):
     meta = rom_metadata(path).copy()
+
     try:
-        meta["crc32"] = hash_rom_file(path)
-    except Exception as e:
+        # 🔥 Skip hashing very large files (PS2, GC, etc.)
+        if should_hash(path):
+            meta["crc32"] = hash_rom_file(path)
+        else:
+            meta["crc32"] = None  # intentionally skipped
+    except Exception:
         meta["crc32"] = "ERROR"
+
     return meta
 
 # ============================================================
@@ -477,6 +594,62 @@ def load_game_db():
 def enhanced_batch_scan(path):
     """Placeholder for parallel hashing, dup detection, reports."""
     return {'path': path, 'status': 'not_enabled'}
+    
+# ============================================================
+# COLLECTION LEVEL REASONING
+# ============================================================
+
+def analyze_collection(rom_paths: list) -> dict:
+    """
+    Group ROMs by game identity and analyze variants.
+    """
+    games = {}
+    total = len(rom_paths)
+
+    for idx, path in enumerate(rom_paths, 1):
+        # 🔥 Progress output so it never looks frozen
+        print(f"[{idx}/{total}] Analyzing {os.path.basename(path)}")
+        sys.stdout.flush()
+
+        meta = rom_metadata_extended(path)
+        identity = derive_game_identity(meta)
+        gid = identity["id"]
+
+        provenance = evaluate_rom_provenance(meta)
+
+        entry = {
+            "file": meta["file"],
+            "path": meta["path"],
+            "crc32": meta.get("crc32"),
+            "size_mb": meta["size_mb"],
+            "provenance": provenance,
+        }
+
+        if gid not in games:
+            games[gid] = {
+                "title": identity["title"],
+                "platform": identity["platform"],
+                "variants": []
+            }
+
+        games[gid]["variants"].append(entry)
+
+    return games
+    
+def recommend_best_variant(variants: list) -> dict:
+    """
+    Return the ROM variant with the highest provenance score.
+    """
+    best = None
+    best_score = -1
+
+    for v in variants:
+        score = v.get("provenance", {}).get("score", 0)
+        if score > best_score:
+            best = v
+            best_score = score
+
+    return best
 
 # ------------------------------------------------------------
 # 6. REGION & VERSION COMPARISON
@@ -799,6 +972,7 @@ class Menu:
         table.add_row("5", "ROM Tools / Game Intelligence")
         table.add_row("6", "Help / Hotkeys")
         table.add_row("7", "Batch ROM Scan")
+        table.add_row("8", "Collection Intelligence (Duplicates / Best ROM)")
         table.add_row("0", "Exit")
 
         console.print(table)
@@ -974,6 +1148,7 @@ class DarkelfCLI:
     def web_search_flow(self):
         clear()
         self.banner()
+        reset_stdin()
         q = input("Web search for> ").strip()
         if not q:
             return
@@ -1045,7 +1220,9 @@ class DarkelfCLI:
     def batch_rom_scan(self):
         clear()
         self.banner()
-        path = input("ROM directory to scan> ").strip()
+        
+        reset_stdin()
+        path = safe_input("ROM directory to scan> ").strip()
         roms = scan_roms(path)
 
         if not roms:
@@ -1074,6 +1251,50 @@ class DarkelfCLI:
 
 
         console.print(table)
+        press_enter()
+        
+    # -----------------------
+    # Collection Intelligence flow
+    # -----------------------
+    def collection_intelligence_flow(self):
+        clear()
+        self.banner()
+        
+        reset_stdin()
+        path = safe_input("ROM directory to analyze> ").strip()
+        roms = scan_roms(path)
+
+        if not roms:
+            console.print("No ROMs found.")
+            press_enter()
+            return
+
+        analysis = analyze_collection(roms)
+
+        for gid, game in analysis.items():
+            console.print(f"\n[bold cyan]{game['title']}[/bold cyan] ({game['platform']})")
+    
+            if len(game["variants"]) == 1:
+                v = game["variants"][0]
+                console.print(
+                    f" ✓ Single ROM: {v['file']} "
+                    f"({v['provenance']['verdict']})"
+                )
+                continue
+
+            best = recommend_best_variant(game["variants"])
+
+            for v in game["variants"]:
+                marker = "⭐" if v is best else " "
+                console.print(
+                    f" {marker} {v['file']} "
+                    f"[{v['provenance']['score']}% | {v['provenance']['verdict']}]"
+                )
+
+            console.print(
+                f" → Recommended keep: [bold]{best['file']}[/bold]"
+            )
+
         press_enter()
 
     # -----------------------
@@ -1219,7 +1440,9 @@ class DarkelfCLI:
     def rom_flow(self):
         clear()
         self.banner()
-        path = input("ROM directory> ").strip()
+        
+        reset_stdin()
+        path = safe_input("ROM directory> ").strip()
         roms = scan_roms(path)
 
         if not roms:
@@ -1283,7 +1506,7 @@ Android Device: {device}
                 self.rom_flow()  # existing behavior
 
             elif choice == "2":
-                path = input("ROM file or directory> ").strip()
+                path = safe_input("ROM file or directory> ").strip()
 
                 if os.path.isdir(path):
                     roms = scan_roms(path)
@@ -1310,7 +1533,7 @@ Android Device: {device}
                 press_enter()
 
             elif choice == "3":
-                path = input("ROM file path> ").strip()
+                path = safe_input("ROM file path> ").strip()
                 saves = detect_save_files(path)
                 if not saves:
                     console.print("No save files found.")
@@ -1380,6 +1603,7 @@ Android Device: {device}
 
     def run(self):
         while True:
+            reset_stdin()
             clear()
             self.banner()
             Menu.main()
@@ -1412,6 +1636,9 @@ Android Device: {device}
             elif choice == "7":
                 self.batch_rom_scan()
 
+            elif choice == "8":
+                self.collection_intelligence_flow()
+
             else:
                 console.print("Invalid selection.")
                 press_enter()
@@ -1422,4 +1649,3 @@ Android Device: {device}
 
 if __name__ == "__main__":
     DarkelfCLI().run()
-
