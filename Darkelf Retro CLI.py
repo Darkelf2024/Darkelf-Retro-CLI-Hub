@@ -1,12 +1,103 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
+# Darkelf Retro CLI v4.8
+# Retro Gaming Research & Preservation Terminal
+#
+# Copyright (C) 2025 Dr. Kevin Moore
+#
+# SPDX-License-Identifier: LGPL-3.0-or-later
+#
+# Licensed under the GNU Lesser General Public License v3.0 or later.
+#
+# You may obtain a copy of the License at:
+# https://www.gnu.org/licenses/lgpl-3.0.html
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Lesser General Public License as published
+# by the Free Software Foundation, either version 3 of the License,
+# or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+# See the GNU Lesser General Public License for more details.
+#
+# ---------------------------------------------------------------------------
+# EXPORT COMPLIANCE NOTICE
+# ---------------------------------------------------------------------------
+#
+# This software may contain publicly available cryptographic source code
+# and is intended for lawful research, archival, preservation,
+# and educational applications.
+#
+# This distribution contains source code only.
+# No compiled binaries are included.
+#
+# Users are responsible for complying with all applicable export control
+# laws, sanctions regulations, and import/export restrictions in their
+# jurisdiction.
+#
+# PROHIBITED EXPORTS:
+# This software may not be exported, re-exported, or transferred to:
+#
+# - Countries or territories subject to applicable embargoes
+# - Individuals or entities on denied-party or sanctions lists
+# - Restricted parties under applicable export control regulations
+#
+# PROHIBITED END USES:
+# This software may not be used in activities involving:
+#
+# - Nuclear weapons
+# - Missile systems
+# - Chemical or biological weapons
+# - Unauthorized intrusion or unlawful cyber operations
+#
+# ---------------------------------------------------------------------------
+# ETHICAL USE NOTICE
+# ---------------------------------------------------------------------------
+#
+# Darkelf Retro CLI is intended for lawful retro gaming research,
+# digital preservation, emulator management, archival access,
+# ROM verification, and educational use.
+#
+# Users are responsible for ensuring they possess the legal rights
+# to access, archive, verify, or use any ROMs, BIOS files,
+# software images, manuals, or digital media processed
+# by this software.
+#
+# The author assumes no liability for misuse, unlawful distribution,
+# copyright infringement, or damages arising from the use
+# of this software.
+#
+# ---------------------------------------------------------------------------
+# PROJECT INFORMATION
+# ---------------------------------------------------------------------------
+#
+# Author: Dr. Kevin Moore
+# Project: Darkelf Retro CLI
+# Version: 4.7
+# License: LGPL-3.0-or-later
+#
+# Features:
+# - Retro gaming research terminal
+# - ROM verification and metadata analysis
+# - Emulator recommendation engine
+# - Internet Archive integration
+# - Retro collection intelligence
+# - AI-assisted retro gaming research
+#
+# This edition is entirely terminal-based and does not use
+# PyQt5, PySide6, Electron, or other GUI frameworks.
+#
+# Contributions and preservation research collaboration are welcome.
+#
+# © 2025 Dr. Kevin Moore. All rights reserved where applicable.
+
 
 import os
 import sys
 import json
 import time
 import textwrap
-import subprocess
+import subprocess  # nosec B404
 import requests
 import hashlib
 import zlib
@@ -24,6 +115,14 @@ import zlib
 
 ORIGINAL_TTY_ATTRS = None
 
+
+def debug_log(msg):
+    try:
+        console.log(msg)
+    except Exception:
+        print(msg)
+
+
 def init_tty():
     global ORIGINAL_TTY_ATTRS
     try:
@@ -33,17 +132,18 @@ def init_tty():
         ORIGINAL_TTY_ATTRS = None
 
 
-
 def safe_input(prompt=""):
     reset_stdin()
     return input(prompt)
 
+
 def flush_stdin():
     try:
         termios.tcflush(sys.stdin, termios.TCIFLUSH)
-    except Exception:
-        pass
-        
+    except Exception as e:
+        console.log(f"[dim]TTY flush failed: {e}[/dim]")
+
+
 def reset_stdin():
     try:
         if ORIGINAL_TTY_ATTRS is None:
@@ -51,9 +151,8 @@ def reset_stdin():
         fd = sys.stdin.fileno()
         termios.tcsetattr(fd, termios.TCSADRAIN, ORIGINAL_TTY_ATTRS)
         termios.tcflush(fd, termios.TCIFLUSH)
-    except Exception:
-        pass
-
+    except Exception as e:
+        console.log(f"[dim]TTY flush failed: {e}[/dim]")
 
 
 current_url = None
@@ -64,6 +163,7 @@ current_links = []
 # ============================================================
 # INPUT
 # ============================================================
+
 
 def read_key():
     fd = sys.stdin.fileno()
@@ -82,10 +182,12 @@ def read_key():
         return ch
     finally:
         termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-        
+
+
 # ============================================================
 # PAGER (LEGACY — STILL USED BY AI / ARCHIVES / ROM FLOWS)
 # ============================================================
+
 
 def manual_pager(text, page_height=None):
     """
@@ -107,7 +209,7 @@ def manual_pager(text, page_height=None):
     while True:
         clear()
 
-        for line in lines[pos:pos + height]:
+        for line in lines[pos : pos + height]:
             print(line)
 
         if max_pos == 0:
@@ -128,9 +230,11 @@ def manual_pager(text, page_height=None):
         elif key in ("p", "P"):
             pos = max(0, pos - height)
 
+
 # ============================================================
 # BROWSER PAGE RENDER (NO PAGER)
 # ============================================================
+
 
 def render_page(title, url, body):
     clear()
@@ -150,9 +254,10 @@ def render_page(title, url, body):
         for i, (text, href) in enumerate(current_links[:9], 1):
             label = text[:60] if text else href
             print(f"[{i}] {label}")
-    
+
     print("-" * width)
     print("[b] Back   [f] Forward   [q] Quit   [1–9] Open link")
+
 
 def load_and_render(url):
     global current_links
@@ -193,6 +298,7 @@ def load_and_render(url):
 
     render_page(title, url, body)
 
+
 def open_page(url):
     global current_url, back_stack, forward_stack
 
@@ -206,6 +312,7 @@ def open_page(url):
     termios.tcflush(sys.stdin, termios.TCIFLUSH)  # 🔥 REQUIRED
     browser_loop()
 
+
 def go_back():
     global current_url
     if not back_stack:
@@ -215,6 +322,7 @@ def go_back():
     current_url = back_stack.pop()
     load_and_render(current_url)
 
+
 def go_forward():
     global current_url
     if not forward_stack:
@@ -223,6 +331,7 @@ def go_forward():
     back_stack.append(current_url)
     current_url = forward_stack.pop()
     load_and_render(current_url)
+
 
 def browser_loop():
     while True:
@@ -241,6 +350,7 @@ def browser_loop():
             idx = int(k) - 1
             if 0 <= idx < len(current_links):
                 open_page(current_links[idx][1])
+
 
 # ============================================================
 # CONFIG
@@ -273,30 +383,52 @@ ROM_CACHE_DIR = os.path.join(BASE_DIR, "rom_cache")
 os.makedirs(ROM_CACHE_DIR, exist_ok=True)
 
 ROM_EXTENSIONS = (
-    ".iso", ".bin", ".cue", ".chd", ".cso",
-    ".zip", ".7z", ".rar",
-    ".nes", ".sfc", ".smc",
-    ".gb", ".gbc", ".gba",
-    ".n64", ".z64", ".v64",
-    ".gcm", ".wbfs", ".wad",
-    ".md", ".gen", ".sms",
-    ".fds", ".a26", ".a78",
+    ".iso",
+    ".bin",
+    ".cue",
+    ".chd",
+    ".cso",
+    ".zip",
+    ".7z",
+    ".rar",
+    ".nes",
+    ".sfc",
+    ".smc",
+    ".gb",
+    ".gbc",
+    ".gba",
+    ".n64",
+    ".z64",
+    ".v64",
+    ".gcm",
+    ".wbfs",
+    ".wad",
+    ".md",
+    ".gen",
+    ".sms",
+    ".fds",
+    ".a26",
+    ".a78",
 )
 
 # ============================================================
 # UTIL
 # ============================================================
 
+
 def wrap(text: str, width: int = 96) -> str:
     if not isinstance(text, str):
         text = " ".join(text)
     return textwrap.fill(text, width)
 
+
 def clear():
-    os.system("cls" if os.name == "nt" else "clear")
+    print("\033[2J\033[H", end="")
+
 
 def press_enter(msg="Press Enter to continue..."):
     input(f"\n{msg}")
+
 
 def is_int(s: str) -> bool:
     try:
@@ -304,23 +436,36 @@ def is_int(s: str) -> bool:
         return True
     except Exception:
         return False
-        
+
+
 # ============================================================
 # GAME IDENTITY ABSTRACTION
 # ============================================================
+
 
 def normalize_title(name: str) -> str:
     """Strip common noise from ROM filenames."""
     name = os.path.splitext(name)[0]
     noise = [
-        "(usa)", "(u)", "(europe)", "(eu)", "(japan)", "(jp)",
-        "(rev", "(v", "[!]", "[b]", "[t]", "[h]"
+        "(usa)",
+        "(u)",
+        "(europe)",
+        "(eu)",
+        "(japan)",
+        "(jp)",
+        "(rev",
+        "(v",
+        "[!]",
+        "[b]",
+        "[t]",
+        "[h]",
     ]
     lname = name.lower()
     for n in noise:
         if n in lname:
             lname = lname.split(n)[0]
     return lname.replace("_", " ").strip().title()
+
 
 def derive_game_identity(rom_meta: dict) -> dict:
     """
@@ -336,9 +481,11 @@ def derive_game_identity(rom_meta: dict) -> dict:
         "variants": [],
     }
 
+
 # ============================================================
 # ROM HASHING
 # ============================================================
+
 
 def hash_rom_file(path, blocksize=1024 * 1024):
     crc = 0
@@ -349,10 +496,12 @@ def hash_rom_file(path, blocksize=1024 * 1024):
                 break
             crc = zlib.crc32(chunk, crc)
     return f"{crc & 0xffffffff:08X}"
-    
+
+
 # ============================================================
 # ROM PROVENANCE / TRUST SCORING
 # ============================================================
+
 
 def evaluate_rom_provenance(rom_meta: dict) -> dict:
     """
@@ -392,11 +541,8 @@ def evaluate_rom_provenance(rom_meta: dict) -> dict:
     else:
         verdict = "Questionable / Needs Verification"
 
-    return {
-        "score": score,
-        "verdict": verdict,
-        "signals": reasons
-    }
+    return {"score": score, "verdict": verdict, "signals": reasons}
+
 
 # ============================================================
 # ROM + PLATFORM DETECTION
@@ -426,7 +572,7 @@ def detect_platform(name: str, path: str | None = None):
             if rom_hash in ROM_HASHES:
                 return ROM_HASHES[rom_hash]
         except Exception:
-            pass
+            return "UNKNOWN"
 
     # --- Header-based detection (secondary)
     if path and os.path.isfile(path):
@@ -442,7 +588,7 @@ def detect_platform(name: str, path: str | None = None):
             if b"PLAYSTATION" in header:
                 return "PS2"
         except Exception:
-            pass
+            return "UNKNOWN"
 
     # --- Filename keywords (optional fallback)
     for plat, keys in PLATFORM_KEYWORDS.items():
@@ -452,7 +598,7 @@ def detect_platform(name: str, path: str | None = None):
     # --- Size heuristic fallback (least reliable)
     if path and os.path.isfile(path):
         try:
-            size_gb = os.path.getsize(path) / (1024 ** 3)
+            size_gb = os.path.getsize(path) / (1024**3)
 
             # GameCube discs are exactly ~1.35GB
             if 1.3 <= size_gb <= 1.6:
@@ -463,10 +609,11 @@ def detect_platform(name: str, path: str | None = None):
                 return "PS2"
 
         except Exception:
-            pass
+            return "UNKNOWN"
 
     # If no match, return UNKNOWN
     return "UNKNOWN"
+
 
 def scan_roms(path: str):
     roms = []
@@ -476,14 +623,16 @@ def scan_roms(path: str):
                 roms.append(os.path.join(root, f))
     return roms
 
+
 def rom_metadata(path: str):
     return {
         "file": os.path.basename(path),
         "platform": detect_platform(os.path.basename(path), path),
         "size_mb": round(os.path.getsize(path) / 1024 / 1024, 2),
-        "path": path
+        "path": path,
     }
-    
+
+
 def should_hash(path, max_mb=500):
     try:
         size_mb = os.path.getsize(path) / 1024 / 1024
@@ -491,9 +640,11 @@ def should_hash(path, max_mb=500):
     except Exception:
         return False
 
+
 # ============================================================
 # ADD: EXTENDED ROM METADATA (OPTIONAL)
 # ============================================================
+
 
 def rom_metadata_extended(path: str):
     meta = rom_metadata(path).copy()
@@ -509,16 +660,21 @@ def rom_metadata_extended(path: str):
 
     return meta
 
+
 # ============================================================
 # ANDROID DEVICE DETECTION (ADB)
 # ============================================================
 
+
 def adb_detect():
     try:
-        out = subprocess.check_output(
-            ["adb", "shell", "getprop"],
-            stderr=subprocess.DEVNULL,
-            text=True
+        adb_path = shutil.which("adb")
+
+        if not adb_path:
+            raise FileNotFoundError("adb executable not found")
+
+        out = subprocess.check_output(  # nosec B603
+            [adb_path, "shell", "getprop"], stderr=subprocess.DEVNULL, text=True
         )
 
         def prop(k):
@@ -530,74 +686,95 @@ def adb_detect():
         return {
             "device": prop("ro.product.model"),
             "cpu": prop("ro.board.platform"),
-            "serial": prop("ro.serialno")
+            "serial": prop("ro.serialno"),
         }
+
     except Exception:
-        return {
-            "device": "ADB not detected",
-            "cpu": "Unknown",
-            "serial": "N/A"
-        }
-        
+        return {"device": "ADB not detected", "cpu": "Unknown", "serial": "N/A"}
+
+
 # ------------------------------------------------------------
 # 1. ROM VERIFICATION (No-Intro / Redump style)
 # ------------------------------------------------------------
 
+
 def verify_rom_hash(file_path, known_db=None):
-    """Compute CRC32/SHA1 and compare against known-good DB."""
+    """
+    Compute CRC32, SHA1, and SHA256 hashes for ROM verification.
+
+    SHA1 is retained for compatibility with legacy ROM databases
+    such as No-Intro and Redump, but is explicitly marked as
+    non-security usage.
+    """
     try:
-        with open(file_path, 'rb') as f:
-            data = f.read()
+        crc = 0
+        sha1 = hashlib.sha1(usedforsecurity=False)
+        sha256 = hashlib.sha256()
+
+        with open(file_path, "rb") as f:
+            while chunk := f.read(1024 * 1024):  # 1MB chunks
+                crc = zlib.crc32(chunk, crc)
+                sha1.update(chunk)
+                sha256.update(chunk)
+
         return {
-            'crc32': format(zlib.crc32(data) & 0xFFFFFFFF, '08x'),
-            'sha1': hashlib.sha1(data).hexdigest(),
-            'status': 'UNKNOWN'
+            "crc32": format(crc & 0xFFFFFFFF, "08x"),
+            "sha1": sha1.hexdigest(),
+            "sha256": sha256.hexdigest(),
+            "status": "UNKNOWN",
         }
+
     except Exception as e:
-        return {'error': str(e)}
+        return {"error": str(e)}
+
 
 # ------------------------------------------------------------
 # 2. SAVE-STATE & MEMORY CARD DETECTION
 # ------------------------------------------------------------
 
+
 def detect_save_files(rom_path):
     """Locate emulator save files related to a ROM."""
     base = os.path.splitext(rom_path)[0]
-    exts = ('.sav', '.srm', '.mcd', '.state', '.ps2')
+    exts = (".sav", ".srm", ".mcd", ".state", ".ps2")
     return [base + e for e in exts if os.path.exists(base + e)]
+
 
 # ------------------------------------------------------------
 # 3. PER-GAME EMULATOR PROFILE GENERATOR
 # ------------------------------------------------------------
 
+
 def generate_emulator_profile(game_name, emulator):
     """Stub for per-game emulator configuration generation."""
-    return {
-        'game': game_name,
-        'emulator': emulator,
-        'profile': 'default-optimized'
-    }
+    return {"game": game_name, "emulator": emulator, "profile": "default-optimized"}
+
 
 # ------------------------------------------------------------
 # 4. OFFLINE GAME ENCYCLOPEDIA CACHE
 # ------------------------------------------------------------
 
-GAME_DB = os.path.join(BASE_DIR, 'game_encyclopedia.json')
+GAME_DB = os.path.join(BASE_DIR, "game_encyclopedia.json")
+
 
 def load_game_db():
     return json.load(open(GAME_DB)) if os.path.exists(GAME_DB) else {}
+
 
 # ------------------------------------------------------------
 # 5. BATCH ROM SCAN ENHANCEMENTS
 # ------------------------------------------------------------
 
+
 def enhanced_batch_scan(path):
     """Placeholder for parallel hashing, dup detection, reports."""
-    return {'path': path, 'status': 'not_enabled'}
-    
+    return {"path": path, "status": "not_enabled"}
+
+
 # ============================================================
 # COLLECTION LEVEL REASONING
 # ============================================================
+
 
 def analyze_collection(rom_paths: list) -> dict:
     """
@@ -629,13 +806,14 @@ def analyze_collection(rom_paths: list) -> dict:
             games[gid] = {
                 "title": identity["title"],
                 "platform": identity["platform"],
-                "variants": []
+                "variants": [],
             }
 
         games[gid]["variants"].append(entry)
 
     return games
-    
+
+
 def recommend_best_variant(variants: list) -> dict:
     """
     Return the ROM variant with the highest provenance score.
@@ -651,23 +829,28 @@ def recommend_best_variant(variants: list) -> dict:
 
     return best
 
+
 # ------------------------------------------------------------
 # 6. REGION & VERSION COMPARISON
 # ------------------------------------------------------------
 
+
 def compare_regions(game_title):
     return {
-        'USA': 'Standard release',
-        'JP': 'Harder difficulty, uncensored',
-        'EU': 'Slower PAL speed'
+        "USA": "Standard release",
+        "JP": "Harder difficulty, uncensored",
+        "EU": "Slower PAL speed",
     }
+
 
 # ------------------------------------------------------------
 # 7. RETROACHIEVEMENTS AWARENESS
 # ------------------------------------------------------------
 
+
 def check_retroachievements(game_title):
-    return {'supported': False, 'achievements': 0}
+    return {"supported": False, "achievements": 0}
+
 
 # ------------------------------------------------------------
 # 8. AI DIFFICULTY & ACCESSIBILITY ANALYSIS
@@ -676,6 +859,7 @@ def check_retroachievements(game_title):
 # ------------------------------------------------------------
 # 8. AI DIFFICULTY & ACCESSIBILITY ANALYSIS
 # ------------------------------------------------------------
+
 
 def analyze_game_difficulty(game_title):
     prompt = f"""
@@ -692,131 +876,146 @@ Be concise and accurate. If unsure, say so.
     return {
         "difficulty": "AI-derived",
         "manual_required": "AI-derived",
-        "notes_prompt": prompt
+        "notes_prompt": prompt,
     }
+
 
 # ------------------------------------------------------------
 # 9. COMMAND MODE (VIM-STYLE)
 # ------------------------------------------------------------
 
+
 def command_mode(input_line):
     """Stub for future :command interface."""
     return f"Command received: {input_line}"
+
 
 # ------------------------------------------------------------
 # 10. SESSION EXPORT
 # ------------------------------------------------------------
 
-def export_session(data, fmt='json'):
+
+def export_session(data, fmt="json"):
     """Export data to JSON / MD / TXT."""
     return fmt
+
 
 # ------------------------------------------------------------
 # 11. THEME & UI PROFILES
 # ------------------------------------------------------------
 
-THEMES = ['crt-green', 'amber', 'mono', 'high-contrast']
+THEMES = ["crt-green", "amber", "mono", "high-contrast"]
 
 # ------------------------------------------------------------
 # 12. WHAT SHOULD I PLAY ENGINE
 # ------------------------------------------------------------
 
-def recommend_game(mood='any', time_available=None):
-    return 'Recommendation engine not yet active'
+
+def recommend_game(mood="any", time_available=None):
+    return "Recommendation engine not yet active"
+
 
 # ============================================================
 # OLLAMA BACKGROUND MANAGER (ONE TERMINAL)
 # ============================================================
 
+
 class OllamaManager:
     """
     Ensures Ollama daemon is available.
-    If not running, starts `ollama serve` detached from this process
-    so it survives terminal/app exit (best-effort across OSes).
     """
+
     def __init__(self):
         self.started_here = False
 
+        self.ollama_path = shutil.which("ollama")
+        if not self.ollama_path:
+            console.print(
+                Panel(
+                    "Ollama engine not found.\nInstall from https://ollama.com",
+                    title="Darkelf Retro AI Error",
+                    border_style="red",
+                )
+            )
+            sys.exit(1)
+
     def is_running(self) -> bool:
         try:
-            p = subprocess.run(
-                ["ollama", "list"],
+            p = subprocess.run(  # nosec B603
+                [self.ollama_path, "list"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
-                timeout=2.5
+                timeout=2.5,
             )
             return p.returncode == 0
+
         except Exception:
             return False
 
     def _start_detached(self):
-        # Cross-platform detachment:
-        # - Windows: DETACHED_PROCESS + CREATE_NEW_PROCESS_GROUP
-        # - POSIX: start_new_session=True (similar to setsid)
+
         if os.name == "nt":
             DETACHED_PROCESS = 0x00000008
             CREATE_NEW_PROCESS_GROUP = 0x00000200
-            return subprocess.Popen(
-                ["ollama", "serve"],
+
+            return subprocess.Popen(  # nosec B603
+                [self.ollama_path, "serve"],
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP,
-                close_fds=True
+                close_fds=True,
             )
-        else:
-            return subprocess.Popen(
-                ["ollama", "serve"],
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                start_new_session=True,
-                close_fds=True
-            )
+
+        return subprocess.Popen(  # nosec B603
+            [self.ollama_path, "serve"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+            close_fds=True,
+        )
 
     def ensure_running(self):
-        if not which("ollama"):
-            console.print(Panel(
-                "Ollama engine not found.\nInstall from https://ollama.com",
-                title="Darkelf Retro AI Error",
-                border_style="red"
-            ))
-            sys.exit(1)
-
-        # Already running?
         if self.is_running():
             return
 
-        # Start daemon detached
         try:
             self._start_detached()
             self.started_here = True
+
         except Exception as e:
-            console.print(Panel(
-                f"Failed to start Ollama server.\n{e}",
-                title="Darkelf Retro AI Error",
-                border_style="red"
-            ))
+            console.print(
+                Panel(
+                    f"Failed to start Ollama server.\n{e}",
+                    title="Darkelf Retro AI Error",
+                    border_style="red",
+                )
+            )
             sys.exit(1)
 
-        # Wait until it is actually ready (instead of a blind sleep)
         t0 = time.time()
+
         while time.time() - t0 < 10.0:
             if self.is_running():
                 return
             time.sleep(0.25)
 
-        console.print(Panel(
-            "Ollama was started but did not become ready within 10 seconds.\n"
-            "Try running `ollama serve` manually once to see any errors.",
-            title="Darkelf Retro AI Error",
-            border_style="red"
-        ))
+        console.print(
+            Panel(
+                "Ollama was started but did not become ready within 10 seconds.\n"
+                "Try running `ollama serve` manually once to see any errors.",
+                title="Darkelf Retro AI Error",
+                border_style="red",
+            )
+        )
         sys.exit(1)
+
 
 # ============================================================
 # DARKELF RETRO AI (STREAMING)
 # ============================================================
+
 
 class DarkelfRetroAI:
     """
@@ -824,50 +1023,39 @@ class DarkelfRetroAI:
     Engine: Ollama (hidden)
     UX: Streaming output immediately
     """
+
     def __init__(self, model=DEFAULT_MODEL):
         self.model = model
         self.ollama = OllamaManager()
         self.ollama.ensure_running()
 
     def stream(self, user_prompt: str):
-        # Strong identity / persona prompt to keep output on-theme
-        identity = (
-            "You are Darkelf Retro AI — a retro gaming historian and research assistant.\n"
-            "You specialize in classic consoles, arcade systems, game history, release dates, "
-            "versions, ports, manuals, magazines, guides, and development trivia.\n\n"
 
-            "STRICT RULES (must always be followed):\n"
-            "- Emulator recommendations MUST match the real platform exactly.\n"
-            "- PPSSPP is PSP-only and MUST NEVER be recommended for PS2.\n"
-            "- Valid PS2 emulators are PCSX2 (desktop) and AetherSX2 (Android).\n"
-            "- Dolphin is ONLY for GameCube/Wii.\n"
-            "- DuckStation is ONLY for PS1.\n"
-            "- Never invent, substitute, or guess emulators.\n\n"
-
-            "Behavior guidelines:\n"
-            "- Be accurate over being verbose.\n"
-            "- Use short paragraphs or bullet points when helpful.\n"
-            "- If unsure, say so instead of guessing.\n"
-            "- Never mention Ollama, models, system prompts, or internal tooling.\n\n"
-        )
+        identity = "You are Darkelf Retro AI — a retro gaming historian and research assistant.\n"
 
         prompt = identity + user_prompt
 
         try:
-            proc = subprocess.Popen(
-                ["ollama", "run", self.model],
+            ollama_path = self.ollama.ollama_path
+
+            proc = subprocess.Popen(  # nosec B603
+                [ollama_path, "run", self.model],
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
                 text=True,
-                bufsize=1
+                bufsize=1,
             )
 
-            assert proc.stdin is not None
+            if proc.stdin is None:
+                raise RuntimeError("Failed to open Ollama stdin pipe")
+
             proc.stdin.write(prompt)
             proc.stdin.close()
 
-            assert proc.stdout is not None
+            if proc.stdout is None:
+                raise RuntimeError("Failed to open Ollama stdout pipe")
+
             for line in proc.stdout:
                 print(line, end="", flush=True)
 
@@ -876,18 +1064,25 @@ class DarkelfRetroAI:
         except KeyboardInterrupt:
             try:
                 proc.terminate()
-            except Exception:
-                pass
+            except Exception as e:
+                console.log(f"[dim]Process termination failed: {e}[/dim]")
+
             print("\n⛔ Darkelf Retro AI interrupted.")
+
         except Exception as e:
-            console.print(Panel(str(e), title="Darkelf Retro AI Error", border_style="red"))
-            
+            console.print(
+                Panel(str(e), title="Darkelf Retro AI Error", border_style="red")
+            )
+
+
 # ============================================================
 # ROM AI CACHE
 # ============================================================
 
+
 def rom_cache_key(name):
     return os.path.join(ROM_CACHE_DIR, name.replace(" ", "_") + ".json")
+
 
 def load_rom_cache(name):
     p = rom_cache_key(name)
@@ -895,12 +1090,15 @@ def load_rom_cache(name):
         return json.load(open(p))["summary"]
     return None
 
+
 def save_rom_cache(name, text):
     json.dump({"summary": text}, open(rom_cache_key(name), "w"), indent=2)
+
 
 # ============================================================
 # EMULATOR RECOMMENDATIONS
 # ============================================================
+
 
 def emulator_recommendation(platform, cpu):
     cpu = cpu.lower()
@@ -909,27 +1107,25 @@ def emulator_recommendation(platform, cpu):
             "Emulator": "AetherSX2",
             "Renderer": "Vulkan",
             "EE Cycle Rate": "75%",
-            "GPU Threads": "Enabled" if "snapdragon" in cpu else "Disabled"
+            "GPU Threads": "Enabled" if "snapdragon" in cpu else "Disabled",
         }
     if platform == "GAMECUBE":
         return {
             "Emulator": "Dolphin",
             "Backend": "Vulkan",
-            "Shader Compilation": "Hybrid"
+            "Shader Compilation": "Hybrid",
         }
     return {"Emulator": "Unknown"}
-    
+
+
 # ============================================================
 # PAGE PREVIEW FETCHER (DDG Lite fallback)
 # ============================================================
 
+
 def fetch_page_preview(url, timeout=6):
     try:
-        r = requests.get(
-            url,
-            timeout=timeout,
-            headers={"User-Agent": USER_AGENT}
-        )
+        r = requests.get(url, timeout=timeout, headers={"User-Agent": USER_AGENT})
         soup = BeautifulSoup(r.text, "html.parser")
 
         # Page title
@@ -954,9 +1150,11 @@ def fetch_page_preview(url, timeout=6):
     except Exception:
         return "", ""
 
+
 # ============================================================
 # MENU
 # ============================================================
+
 
 class Menu:
     @staticmethod
@@ -979,22 +1177,26 @@ class Menu:
 
     @staticmethod
     def help():
-        console.print(Panel(
-            "\n".join([
-                "Hotkeys / Tips:",
-                "• In lists, type a number (e.g., 1) to open that item.",
-                "• Web Search: use DDG Lite to find guides, wikis, manuals, maps.",
-                "• Archives: searches Internet Archive (magazines, guides, manuals, ephemera).",
-                "• VGHF: opens a browser-style search via DDG for the VGHF library.",
-                "",
-                "Darkelf Retro AI Tips:",
-                "• Ask for release dates, dev trivia, ports, versions, region differences.",
-                "• Ask for 'beginner route', 'best starter loadout', 'boss tips', etc.",
-            ]),
-            title="Help",
-            border_style="cyan"
-        ))
-        
+        console.print(
+            Panel(
+                "\n".join(
+                    [
+                        "Hotkeys / Tips:",
+                        "• In lists, type a number (e.g., 1) to open that item.",
+                        "• Web Search: use DDG Lite to find guides, wikis, manuals, maps.",
+                        "• Archives: searches Internet Archive (magazines, guides, manuals, ephemera).",
+                        "• VGHF: opens a browser-style search via DDG for the VGHF library.",
+                        "",
+                        "Darkelf Retro AI Tips:",
+                        "• Ask for release dates, dev trivia, ports, versions, region differences.",
+                        "• Ask for 'beginner route', 'best starter loadout', 'boss tips', etc.",
+                    ]
+                ),
+                title="Help",
+                border_style="cyan",
+            )
+        )
+
     @staticmethod
     def rom_tools():
         table = Table(title="ROM Tools / Game Intelligence", show_lines=True)
@@ -1011,9 +1213,11 @@ class Menu:
 
         console.print(table)
 
+
 # ============================================================
 # SEARCH ENGINE (DDG Lite)
 # ============================================================
+
 
 class WebSearch:
     def __init__(self):
@@ -1031,9 +1235,11 @@ class WebSearch:
 
     def _save_history(self):
         try:
-            json.dump(self.history[-200:], open(HISTORY_FILE, "w", encoding="utf-8"), indent=2)
-        except Exception:
-            pass
+            json.dump(
+                self.history[-200:], open(HISTORY_FILE, "w", encoding="utf-8"), indent=2
+            )
+        except Exception as e:
+            console.log(f"[yellow]History save failed: {e}[/yellow]")
 
     def search(self, query: str, max_results: int = 12):
         self.history.append({"q": query, "ts": int(time.time())})
@@ -1053,16 +1259,20 @@ class WebSearch:
                 continue
             try:
                 real = requests.utils.unquote(href.split("uddg=")[1].split("&")[0])
-            except Exception:
+
+            except (IndexError, ValueError) as e:
+                console.log(f"[dim]Skipping malformed DDG URL: {e}[/dim]")
                 continue
             results.append((title, real))
             if len(results) >= max_results:
                 break
         return results
 
+
 # ============================================================
 # INTERNET ARCHIVE (official JSON search + metadata)
 # ============================================================
+
 
 class InternetArchive:
     def __init__(self):
@@ -1071,7 +1281,14 @@ class InternetArchive:
 
     def advanced_search(self, q: str, rows: int = 12, page: int = 1, fields=None):
         if fields is None:
-            fields = ["identifier", "title", "mediatype", "date", "creator", "downloads"]
+            fields = [
+                "identifier",
+                "title",
+                "mediatype",
+                "date",
+                "creator",
+                "downloads",
+            ]
 
         params = {
             "q": q,
@@ -1089,9 +1306,11 @@ class InternetArchive:
         r.raise_for_status()
         return r.json()
 
+
 # ============================================================
 # APP
 # ============================================================
+
 
 class DarkelfCLI:
     def __init__(self):
@@ -1104,13 +1323,15 @@ class DarkelfCLI:
         self.last_query = ""
 
     def banner(self):
-        console.print(Panel.fit(
-            f"[bold green]{APP_NAME}[/bold green] v{APP_VERSION}\n"
-            "🎮 Retro Gaming Research Terminal\n"
-            "🤖 Darkelf Retro AI (local, live)\n"
-            "🗄️ Archives: Internet Archive + VGHF",
-            border_style="green"
-        ))
+        console.print(
+            Panel.fit(
+                f"[bold green]{APP_NAME}[/bold green] v{APP_VERSION}\n"
+                "🎮 Retro Gaming Research Terminal\n"
+                "🤖 Darkelf Retro AI (local, live)\n"
+                "🗄️ Archives: Internet Archive + VGHF",
+                border_style="green",
+            )
+        )
 
     # -----------------------
     # UI helpers
@@ -1140,10 +1361,10 @@ class DarkelfCLI:
             ident = d.get("identifier", "")
             table.add_row(str(i), t, mt, year, ident)
         console.print(table)
-        
-# -----------------------
-# Web Search flow
-# -----------------------
+
+    # -----------------------
+    # Web Search flow
+    # -----------------------
 
     def web_search_flow(self):
         clear()
@@ -1175,7 +1396,7 @@ class DarkelfCLI:
 
                 clear()
                 self.banner()
-                    
+
                 # Fetch page preview
                 page_title, page_desc = fetch_page_preview(url)
 
@@ -1186,9 +1407,9 @@ class DarkelfCLI:
 
                 header = page_title or title
                 divider = "─" * len(header)
-                
+
                 joined_body = "\n".join(body_lines)
-                
+
                 open_page(url)
 
             else:
@@ -1206,21 +1427,23 @@ class DarkelfCLI:
             return
         clear()
         self.banner()
-        console.print(Panel(
-            f"[bold]Q:[/bold] {q}\n\n[dim]Darkelf Retro AI is responding…[/dim]",
-            title=f"Darkelf Retro AI ({self.ai.model})",
-            border_style="magenta"
-        ))
+        console.print(
+            Panel(
+                f"[bold]Q:[/bold] {q}\n\n[dim]Darkelf Retro AI is responding…[/dim]",
+                title=f"Darkelf Retro AI ({self.ai.model})",
+                border_style="magenta",
+            )
+        )
         self.ai.stream(q)
         press_enter("Press Enter to return to menu...")
-        
+
     # -----------------------
     # ADD: Batch ROM Scan
     # -----------------------
     def batch_rom_scan(self):
         clear()
         self.banner()
-        
+
         reset_stdin()
         path = safe_input("ROM directory to scan> ").strip()
         roms = scan_roms(path)
@@ -1237,29 +1460,30 @@ class DarkelfCLI:
         table.add_column("CRC32")
 
         for idx, r in enumerate(roms, 1):
-            console.print(f"[dim]Hashing ({idx}/{len(roms)}): {os.path.basename(r)}[/dim]")
+            console.print(
+                f"[dim]Hashing ({idx}/{len(roms)}): {os.path.basename(r)}[/dim]"
+            )
 
             meta = rom_metadata_extended(r)
-            size_gb = os.path.getsize(r) / (1024 ** 3)
+            size_gb = os.path.getsize(r) / (1024**3)
 
             table.add_row(
                 meta["file"],
                 meta["platform"],
                 f"{size_gb:.2f}",
-                meta.get("crc32", "N/A")
+                meta.get("crc32", "N/A"),
             )
-
 
         console.print(table)
         press_enter()
-        
+
     # -----------------------
     # Collection Intelligence flow
     # -----------------------
     def collection_intelligence_flow(self):
         clear()
         self.banner()
-        
+
         reset_stdin()
         path = safe_input("ROM directory to analyze> ").strip()
         roms = scan_roms(path)
@@ -1272,13 +1496,14 @@ class DarkelfCLI:
         analysis = analyze_collection(roms)
 
         for gid, game in analysis.items():
-            console.print(f"\n[bold cyan]{game['title']}[/bold cyan] ({game['platform']})")
-    
+            console.print(
+                f"\n[bold cyan]{game['title']}[/bold cyan] ({game['platform']})"
+            )
+
             if len(game["variants"]) == 1:
                 v = game["variants"][0]
                 console.print(
-                    f" ✓ Single ROM: {v['file']} "
-                    f"({v['provenance']['verdict']})"
+                    f" ✓ Single ROM: {v['file']} " f"({v['provenance']['verdict']})"
                 )
                 continue
 
@@ -1291,9 +1516,7 @@ class DarkelfCLI:
                     f"[{v['provenance']['score']}% | {v['provenance']['verdict']}]"
                 )
 
-            console.print(
-                f" → Recommended keep: [bold]{best['file']}[/bold]"
-            )
+            console.print(f" → Recommended keep: [bold]{best['file']}[/bold]")
 
         press_enter()
 
@@ -1309,10 +1532,26 @@ class DarkelfCLI:
         table.add_column("Mode", style="white")
         table.add_column("What you get", style="dim")
 
-        table.add_row("1", "Internet Archive: Manuals / Guides", "Strategy guides, manuals, walkthrough books, scans")
-        table.add_row("2", "Internet Archive: Magazines", "EGM/GamePro/etc. issues, scans, articles")
-        table.add_row("3", "Internet Archive: Press / Promo", "Press kits, promo CDs, marketing materials (varies)")
-        table.add_row("4", "VGHF Library (open via web search)", "Search the VGHF catalog & digital archive")
+        table.add_row(
+            "1",
+            "Internet Archive: Manuals / Guides",
+            "Strategy guides, manuals, walkthrough books, scans",
+        )
+        table.add_row(
+            "2",
+            "Internet Archive: Magazines",
+            "EGM/GamePro/etc. issues, scans, articles",
+        )
+        table.add_row(
+            "3",
+            "Internet Archive: Press / Promo",
+            "Press kits, promo CDs, marketing materials (varies)",
+        )
+        table.add_row(
+            "4",
+            "VGHF Library (open via web search)",
+            "Search the VGHF catalog & digital archive",
+        )
         table.add_row("0", "Back", "Return to main menu")
         console.print(table)
 
@@ -1356,11 +1595,13 @@ class DarkelfCLI:
 
         clear()
         self.banner()
-        console.print(Panel(
-            f"Searching Internet Archive…\n\n[dim]{ia_q}[/dim]",
-            title=label,
-            border_style="yellow"
-        ))
+        console.print(
+            Panel(
+                f"Searching Internet Archive…\n\n[dim]{ia_q}[/dim]",
+                title=label,
+                border_style="yellow",
+            )
+        )
 
         try:
             data = self.ia.advanced_search(ia_q, rows=12, page=1)
@@ -1400,11 +1641,13 @@ class DarkelfCLI:
 
         clear()
         self.banner()
-        console.print(Panel(
-            f"https://archive.org/details/{ident}\n\nFetching item metadata…",
-            title="Opening Internet Archive Item",
-            border_style="yellow"
-        ))
+        console.print(
+            Panel(
+                f"https://archive.org/details/{ident}\n\nFetching item metadata…",
+                title="Opening Internet Archive Item",
+                border_style="yellow",
+            )
+        )
 
         try:
             md = self.ia.get_metadata(ident)
@@ -1420,27 +1663,29 @@ class DarkelfCLI:
         date = meta.get("date", "")
         mediatype = meta.get("mediatype", "")
 
-        body = "\n".join([
-            f"[bold]Title:[/bold] {title}",
-            f"[bold]Type:[/bold] {mediatype}",
-            f"[bold]Creator:[/bold] {creator}",
-            f"[bold]Date:[/bold] {date}",
-            "",
-            "[bold]Item Page:[/bold] " + f"https://archive.org/details/{ident}",
-            "",
-            "[bold]Description:[/bold]",
-            wrap(str(desc), 92) if desc else "(none)",
-        ])
+        body = "\n".join(
+            [
+                f"[bold]Title:[/bold] {title}",
+                f"[bold]Type:[/bold] {mediatype}",
+                f"[bold]Creator:[/bold] {creator}",
+                f"[bold]Date:[/bold] {date}",
+                "",
+                "[bold]Item Page:[/bold] " + f"https://archive.org/details/{ident}",
+                "",
+                "[bold]Description:[/bold]",
+                wrap(str(desc), 92) if desc else "(none)",
+            ]
+        )
         console.print(Panel(body, title="Archive Item", border_style="yellow"))
         press_enter("Press Enter to return...")
-        
+
     # -----------------------
     # ROM FLOW
     # -----------------------
     def rom_flow(self):
         clear()
         self.banner()
-        
+
         reset_stdin()
         path = safe_input("ROM directory> ").strip()
         roms = scan_roms(path)
@@ -1491,7 +1736,7 @@ Android Device: {device}
             table.add_row(k, v)
         console.print(table)
         press_enter()
-        
+
     def rom_tools_flow(self):
         while True:
             clear()
@@ -1526,7 +1771,9 @@ Android Device: {device}
 
                 if os.path.isfile(path):
                     result = verify_rom_hash(path)
-                    console.print(Panel(json.dumps(result, indent=2), title="ROM Verification"))
+                    console.print(
+                        Panel(json.dumps(result, indent=2), title="ROM Verification")
+                    )
                 else:
                     console.print("Invalid path.")
 
@@ -1556,7 +1803,9 @@ Android Device: {device}
             elif choice == "5":
                 title = input("Game title> ").strip()
                 ra = check_retroachievements(title)
-                console.print(Panel(json.dumps(ra, indent=2), title="RetroAchievements"))
+                console.print(
+                    Panel(json.dumps(ra, indent=2), title="RetroAchievements")
+                )
                 press_enter()
 
             elif choice == "6":
@@ -1565,11 +1814,13 @@ Android Device: {device}
 
                 clear()
                 self.banner()
-                console.print(Panel(
-                    f"Analyzing difficulty & accessibility for:\n\n[bold]{title}[/bold]\n\n[dim]Darkelf Retro AI is responding…[/dim]",
-                    title="Difficulty & Accessibility Analysis",
-                    border_style="green"
-                ))
+                console.print(
+                    Panel(
+                        f"Analyzing difficulty & accessibility for:\n\n[bold]{title}[/bold]\n\n[dim]Darkelf Retro AI is responding…[/dim]",
+                        title="Difficulty & Accessibility Analysis",
+                        border_style="green",
+                    )
+                )
 
                 self.ai.stream(data["notes_prompt"])
                 press_enter()
@@ -1642,6 +1893,7 @@ Android Device: {device}
             else:
                 console.print("Invalid selection.")
                 press_enter()
+
 
 # ============================================================
 # ENTRY
